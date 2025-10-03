@@ -1,0 +1,143 @@
+import pandas as pd
+import os
+import sys
+import numpy as np
+# print(sys.executable)
+
+"""
+LESSONS LEARNED!!!
+Must be using the same venv as where you installed geopandas, etc.!
+Use where python to get path to python folder
+In python folder, go to Lib->site-packages to find osgeo (if not there, then it was installed incorrectly?)
+Open osgeo folder and copy path, add to environment variables
+IF USING VENV IN VSCODE! ctrl+shift+P, Python: Select Interpreter, then select THE SAME VENV that you downloaded packages in
+To download the packages, just do pip install and then the path to the wheel downloaded from github in downloads folder
+Next time use conda...
+"""
+
+"""
+Big totals:
+
+S1502_C06_001E : Percent Females!!Estimate!!Total population 25 years and over with a Bachelor's degree or higher
+S1502_C06_001M : Percent Females!!Margin of Error!!Total population 25 years and over with a Bachelor's degree or higher
+S1502_C04_001E : Percent Males!!Estimate!!Total population 25 years and over with a Bachelor's degree or higher
+S1502_C04_001M : Percent Males!!Margin of Error!!Total population 25 years and over with a Bachelor's degree or higher
+Don't think that there is percent m/f total pop 25 to 39 with a bachelors deg
+
+Science and engineering
+
+S1502_C04_008E	Percent Males!!Estimate!!DETAILED AGE!!25 to 39 years!!Science and Engineering
+S1502_C04_008M	Percent Males!!Margin of Error!!DETAILED AGE!!25 to 39 years!!Science and Engineering
+S1502_C06_008E	Percent Females!!Estimate!!DETAILED AGE!!25 to 39 years!!Science and Engineering
+S1502_C06_008M	Percent Females!!Margin of Error!!DETAILED AGE!!25 to 39 years!!Science and Engineering
+
+Science and engineering related fields
+
+S1502_C04_009E	Percent Males!!Estimate!!DETAILED AGE!!25 to 39 years!!Science and Engineering Related Fields
+S1502_C04_009M	Percent Males!!Margin of Error!!DETAILED AGE!!25 to 39 years!!Science and Engineering Related Fields
+S1502_C06_009E	Percent Females!!Estimate!!DETAILED AGE!!25 to 39 years!!Science and Engineering Related Fields
+S1502_C06_009M	Percent Females!!Margin of Error!!DETAILED AGE!!25 to 39 years!!Science and Engineering Related Fields
+
+Business
+
+S1502_C04_010E	Percent Males!!Estimate!!DETAILED AGE!!25 to 39 years!!Business
+S1502_C04_010M	Percent Males!!Margin of Error!!DETAILED AGE!!25 to 39 years!!Business
+S1502_C06_010E	Percent Females!!Estimate!!DETAILED AGE!!25 to 39 years!!Business
+S1502_C06_010M	Percent Females!!Margin of Error!!DETAILED AGE!!25 to 39 years!!Business
+
+Education
+
+S1502_C04_011E	Percent Males!!Estimate!!DETAILED AGE!!25 to 39 years!!Education
+S1502_C04_011M	Percent Males!!Margin of Error!!DETAILED AGE!!25 to 39 years!!Education
+S1502_C06_011E	Percent Females!!Estimate!!DETAILED AGE!!25 to 39 years!!Education
+S1502_C06_011M	Percent Females!!Margin of Error!!DETAILED AGE!!25 to 39 years!!Education
+
+Humanities and others
+
+S1502_C04_012E	Percent Males!!Estimate!!DETAILED AGE!!25 to 39 years!!Arts, Humanities and Others
+S1502_C04_012M	Percent Males!!Margin of Error!!DETAILED AGE!!25 to 39 years!!Arts, Humanities and Others
+S1502_C06_012E	Percent Females!!Estimate!!DETAILED AGE!!25 to 39 years!!Arts, Humanities and Others
+S1502_C06_012M	Percent Females!!Margin of Error!!DETAILED AGE!!25 to 39 years!!Arts, Humanities and Others
+
+"""
+
+### Changing working directory
+os.chdir('C:/Users/sgardiner/OneDrive - SEIC_CORP/Documents/Census data')
+
+### Load in data sets
+
+# fips_codes = pd.read_csv('fipscodes.csv', encoding='latin1') # fixes encoding with ene and stuff
+# can get these from data set GEO_ID column
+
+years = [2015,2016,2017,2018,2019,2021,2022,2023,2024]
+counties = {}
+for year in years:
+    df = pd.read_csv(f'Bach majors by county 2015-2024/ACSST1Y{year}.S1502-Data.csv')
+    df.replace('N', np.nan, inplace=True) # this replaces the 'N' values with NaN so that isna() and others will work
+    # best to do this when the data frame is loaded initially so that every step after is unaffected (root of the problem)
+    counties[year] = df.iloc[1:820] # cutting out the PR counties b/c plotly doesn't display them
+    # would be better to just download the right data set next time
+
+bad_counties = set()
+for year,df in counties.items():
+    for major in ['S1502_C04_008E','S1502_C06_008E','S1502_C04_009E','S1502_C06_009E','S1502_C04_010E','S1502_C06_010E','S1502_C04_011E','S1502_C06_011E','S1502_C04_012E','S1502_C06_012E']:
+        bad_counties.update(df[df[major].isna()].index)
+bad_counties = sorted(list(bad_counties)) # just sorting to check for duplicates which is unnecessary
+
+new_data = {year : counties[year].drop(index = bad_counties) for year in years}
+
+### ADDING FIPS CODES COLUMNS
+
+# want to create column with correct fips codes pulled from GEO_ID col in df
+# have to match NAME with CountyName in fips_codes, then  pull FIPScode value
+# or could just get it from GEO_ID... do that next time
+# ex: 0500000US47157 want to cut off first 9 chars
+fips = {}
+for year in years:
+    fips[year] = new_data[year]["GEO_ID"]
+    fips[year] = fips[year].str.removeprefix("0500000US")
+
+### MAJORS
+
+# Each one is the percent of m/f between ages 25 and 39 with a degree in science and engineering,
+# sci eng related fields, business, education, or humanities.
+
+
+
+"""
+majors = {}
+for year,df in counties.items():
+    majors[year] = {'males_se' : df['S1502_C04_008E'],
+                    'females_se' : df['S1502_C06_008E'],
+                    'males_ser' : df['S1502_C04_009E'],
+                    'females_ser' : df['S1502_C06_009E'],
+                    'males_bus' : df['S1502_C04_010E'],
+                    'females_bus' : df['S1502_C06_010E'],
+                    'males_edu' : df['S1502_C04_011E'],
+                    'females_edu' : df['S1502_C06_011E'],
+                    'males_hum' : df['S1502_C04_012E'],
+                    'females_hum' : df['S1502_C06_012E']}
+
+# print(males_hum[2021].iloc[0])
+# use iloc for indexed row, use loc for labeled row (eg. 'California')
+# can use iloc with range like [1:]
+# for columns: iloc[:, 1] gives just second column
+
+
+### CHECKING FOR NANS
+
+bad_counties = set()
+for year,major_percents in majors.items():
+    for major,data in major_percents.items():
+        bad_counties.update(list(data[data.isna()].index))
+"""
+
+
+# print(sorted(bad_counties)) # doesn't seem to be any duplicates; definitionally, set only contains unique elements
+
+# print(males_se[2015].value_counts()) # -> equivalent to R table()
+
+### PLOTLY
+
+# print(counties[2015][counties[2015]['NAME'].str.contains("Wyoming", na=False)])
+# ^ counties from 2015 containing "Wyoming" in NAME column
