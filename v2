@@ -2,7 +2,13 @@ import pandas as pd
 import os
 import sys
 import numpy as np
+import plotly
+import plotly.express as px
+import json
+from urllib.request import urlopen
+import ffmpeg
 # print(sys.executable)
+# using python 3.11.9; should switch to most recent
 
 """
 LESSONS LEARNED!!!
@@ -62,7 +68,7 @@ S1502_C06_012M	Percent Females!!Margin of Error!!DETAILED AGE!!25 to 39 years!!A
 """
 
 ### Changing working directory
-os.chdir('C:/Users/sgardiner/OneDrive - SEIC_CORP/Documents/Census data')
+os.chdir('C:/Users/sophi/OneDrive/Documents/US Majors by County/')
 
 ### Load in data sets
 
@@ -72,29 +78,42 @@ os.chdir('C:/Users/sgardiner/OneDrive - SEIC_CORP/Documents/Census data')
 years = [2015,2016,2017,2018,2019,2021,2022,2023,2024]
 counties = {}
 for year in years:
-    df = pd.read_csv(f'Bach majors by county 2015-2024/ACSST1Y{year}.S1502-Data.csv')
+    df = pd.read_csv(f'by county/ACSST1Y{year}.S1502-Data.csv')
     df.replace('N', np.nan, inplace=True) # this replaces the 'N' values with NaN so that isna() and others will work
     # best to do this when the data frame is loaded initially so that every step after is unaffected (root of the problem)
     counties[year] = df.iloc[1:820] # cutting out the PR counties b/c plotly doesn't display them
     # would be better to just download the right data set next time
 
+states = {}
+for year in years:
+    state_df = pd.read_csv(f'by state/ACSST1Y{year}.S1502-Data.csv')
+    state_df.replace('N', np.nan, inplace=True)
+    states[year] = state_df.iloc[1:]
+
 bad_counties = set()
 for year,df in counties.items():
     for major in ['S1502_C04_008E','S1502_C06_008E','S1502_C04_009E','S1502_C06_009E','S1502_C04_010E','S1502_C06_010E','S1502_C04_011E','S1502_C06_011E','S1502_C04_012E','S1502_C06_012E']:
         bad_counties.update(df[df[major].isna()].index)
-bad_counties = sorted(list(bad_counties)) # just sorting to check for duplicates which is unnecessary
+# print(1-len(bad_counties) / len(counties[2015]['GEO_ID'])) # 20.9% of counties are not included -- only 79.1% included
+# I wonder what percent of population or land area that is?
 
-new_data = {year : counties[year].drop(index = bad_counties) for year in years}
+bad_states = set()
+for year,df in states.items():
+    for major in ['S1502_C04_008E','S1502_C06_008E','S1502_C04_009E','S1502_C06_009E','S1502_C04_010E','S1502_C06_010E','S1502_C04_011E','S1502_C06_011E','S1502_C04_012E','S1502_C06_012E']:
+        bad_states.update(df[df[major].isna()].index)
+# no bad states! but are they just extrapolating data for the state using very limited data from counties?
+
+county_data = {year : counties[year].drop(index = bad_counties) for year in years}
+state_data = {year : states[year].drop(index = bad_states) for year in years}
+# print(states[2015].iloc[1]) # better way to get column names?
 
 ### ADDING FIPS CODES COLUMNS
 
 # want to create column with correct fips codes pulled from GEO_ID col in df
-# have to match NAME with CountyName in fips_codes, then  pull FIPScode value
-# or could just get it from GEO_ID... do that next time
 # ex: 0500000US47157 want to cut off first 9 chars
 fips = {}
 for year in years:
-    fips[year] = new_data[year]["GEO_ID"]
+    fips[year] = county_data[year]["GEO_ID"]
     fips[year] = fips[year].str.removeprefix("0500000US")
 
 ### MAJORS
@@ -102,42 +121,83 @@ for year in years:
 # Each one is the percent of m/f between ages 25 and 39 with a degree in science and engineering,
 # sci eng related fields, business, education, or humanities.
 
+# might be more interesting and informative to show the difference between female and male stem majors, and is a good way
+# to get a sense of how the major percentage stacks up against the state average (eg, if a percent is small generally or
+# actually small for that state relative to male percent)
 
+# difference = new_data[2015]['S1502_C04_008E'].astype("float") - new_data[2015]['S1502_C06_008E'].astype("float")
+# print(difference) # males - females generally positive
+# in map, make color harsher/worse when difference is larger and paler when difference is less
+# should put info about total percentage of stem majors in hover
 
-"""
 majors = {}
-for year,df in counties.items():
-    majors[year] = {'males_se' : df['S1502_C04_008E'],
-                    'females_se' : df['S1502_C06_008E'],
-                    'males_ser' : df['S1502_C04_009E'],
-                    'females_ser' : df['S1502_C06_009E'],
-                    'males_bus' : df['S1502_C04_010E'],
-                    'females_bus' : df['S1502_C06_010E'],
-                    'males_edu' : df['S1502_C04_011E'],
-                    'females_edu' : df['S1502_C06_011E'],
-                    'males_hum' : df['S1502_C04_012E'],
-                    'females_hum' : df['S1502_C06_012E']}
+for name,data in {'county' : county_data, 'state' : state_data}.items():
+    majors[name] = {}
+    for year in years:
+        df = data[year]
+        majors[name][year] = {
+        'se_diff' : df['S1502_C04_008E'].astype("float") - df['S1502_C06_008E'].astype("float"),
+        'ser_diff' : df['S1502_C04_009E'].astype("float") - df['S1502_C06_009E'].astype("float"),
+        'bus_diff' : df['S1502_C04_010E'].astype("float") - df['S1502_C06_010E'].astype("float"),
+        'edu_diff' : df['S1502_C04_011E'].astype("float") - df['S1502_C06_011E'].astype("float"),
+        'hum_diff' : df['S1502_C04_012E'].astype("float") - df['S1502_C06_012E'].astype("float")
+        }
+# print(majors[2015]['hum_diff']) # works!
+# what is counted in ser? what's counted in se? does census tell us?
 
-# print(males_hum[2021].iloc[0])
-# use iloc for indexed row, use loc for labeled row (eg. 'California')
-# can use iloc with range like [1:]
-# for columns: iloc[:, 1] gives just second column
+### CONVERTING TO DATA FRAME
 
+county_frames = []
+state_frames = []
 
-### CHECKING FOR NANS
+for year in years:
+    ctdf = pd.DataFrame({
+        'year': year,
+        'fips': fips[year].values,
+        **majors['county'][year]
+        }
+    )
+    stdf = pd.DataFrame({
+        'year' : year,
+        'state' : state_data[year]["NAME"],
+        **majors['state'][year]
+    })
+    county_frames.append(ctdf)
+    state_frames.append(stdf)
 
-bad_counties = set()
-for year,major_percents in majors.items():
-    for major,data in major_percents.items():
-        bad_counties.update(list(data[data.isna()].index))
-"""
+final_counties = pd.concat(county_frames, ignore_index=True) # ignore_index=True very important for avoiding index like 0 1 0 1 instead of 0 1 2 3
+final_states = pd.concat(state_frames, ignore_index=True)
 
-
-# print(sorted(bad_counties)) # doesn't seem to be any duplicates; definitionally, set only contains unique elements
-
-# print(males_se[2015].value_counts()) # -> equivalent to R table()
+# print(final_df['se_diff'].max())
 
 ### PLOTLY
 
 # print(counties[2015][counties[2015]['NAME'].str.contains("Wyoming", na=False)])
 # ^ counties from 2015 containing "Wyoming" in NAME column
+
+
+with urlopen("https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json") as response:
+    county_ids = json.load(response)
+
+with urlopen("https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json") as response:
+    state_ids = json.load(response)
+
+fig = px.choropleth_mapbox(
+    final_states,
+    geojson=state_ids,
+    locations='state',
+    featureidkey='properties.name',
+    hover_data=["se_diff"],
+    color="se_diff",
+    color_continuous_scale="reds",
+    range_color=[0,30], # max of se_diff is 29.4%
+    opacity=0.6,
+    mapbox_style="carto-positron",
+    zoom=3,
+    center={"lat": 37.8, "lon": -96},
+    labels={"se_diff" : "Percent"},
+    title="Percentage difference in males and females with majors in SE",
+    animation_frame='year'
+)
+
+fig.show()
