@@ -1,28 +1,13 @@
 import pandas as pd
 import os
-import sys
 import numpy as np
 import plotly
 import plotly.express as px
 import json
 from urllib.request import urlopen
-import ffmpeg
-# print(sys.executable)
-# using python 3.11.9; should switch to most recent
 
 """
-LESSONS LEARNED!!!
-Must be using the same venv as where you installed geopandas, etc.!
-Use where python to get path to python folder
-In python folder, go to Lib->site-packages to find osgeo (if not there, then it was installed incorrectly?)
-Open osgeo folder and copy path, add to environment variables
-IF USING VENV IN VSCODE! ctrl+shift+P, Python: Select Interpreter, then select THE SAME VENV that you downloaded packages in
-To download the packages, just do pip install and then the path to the wheel downloaded from github in downloads folder
-Next time use conda...
-"""
-
-"""
-Big totals:
+Variable identifiers:
 
 S1502_C06_001E : Percent Females!!Estimate!!Total population 25 years and over with a Bachelor's degree or higher
 S1502_C06_001M : Percent Females!!Margin of Error!!Total population 25 years and over with a Bachelor's degree or higher
@@ -68,12 +53,10 @@ S1502_C06_012M	Percent Females!!Margin of Error!!DETAILED AGE!!25 to 39 years!!A
 """
 
 ### Changing working directory
+
 os.chdir('C:/Users/sophi/OneDrive/Documents/US Majors by County/')
 
 ### Load in data sets
-
-# fips_codes = pd.read_csv('fipscodes.csv', encoding='latin1') # fixes encoding with ene and stuff
-# can get these from data set GEO_ID column
 
 years = [2015,2016,2017,2018,2019,2021,2022,2023,2024]
 counties = {}
@@ -109,8 +92,6 @@ state_data = {year : states[year].drop(index = bad_states) for year in years}
 
 ### ADDING FIPS CODES COLUMNS
 
-# want to create column with correct fips codes pulled from GEO_ID col in df
-# ex: 0500000US47157 want to cut off first 9 chars
 fips = {}
 for year in years:
     fips[year] = county_data[year]["GEO_ID"]
@@ -121,13 +102,8 @@ for year in years:
 # Each one is the percent of m/f between ages 25 and 39 with a degree in science and engineering,
 # sci eng related fields, business, education, or humanities.
 
-# might be more interesting and informative to show the difference between female and male stem majors, and is a good way
-# to get a sense of how the major percentage stacks up against the state average (eg, if a percent is small generally or
-# actually small for that state relative to male percent)
-
-# difference = new_data[2015]['S1502_C04_008E'].astype("float") - new_data[2015]['S1502_C06_008E'].astype("float")
-# print(difference) # males - females generally positive
-# in map, make color harsher/worse when difference is larger and paler when difference is less
+difference = new_data[2015]['S1502_C04_008E'].astype("float") - new_data[2015]['S1502_C06_008E'].astype("float")
+print(difference) # males - females generally positive
 # should put info about total percentage of stem majors in hover
 
 majors = {}
@@ -168,13 +144,9 @@ for year in years:
 final_counties = pd.concat(county_frames, ignore_index=True) # ignore_index=True very important for avoiding index like 0 1 0 1 instead of 0 1 2 3
 final_states = pd.concat(state_frames, ignore_index=True)
 
-# print(final_df['se_diff'].max())
+# print(final_df['se_diff'].max()) # trying to figure out how to scale colors for map
 
 ### PLOTLY
-
-# print(counties[2015][counties[2015]['NAME'].str.contains("Wyoming", na=False)])
-# ^ counties from 2015 containing "Wyoming" in NAME column
-
 
 with urlopen("https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json") as response:
     county_ids = json.load(response)
