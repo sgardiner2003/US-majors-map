@@ -22,3 +22,7 @@ This map isn't missing holes like the county map is, but I'm wary of how it migh
 At this point I've added a slider for the years, but I've found it's not very helpful given how small our year range is (2015-2024, excluding 2020). A line graph to show overall change for each state over the years will be my next step. This would also allow me to visually depict the margin of error that comes with the data, courtesy of the Census (equivalent to a 90% confidence interval).
 
 More coming soon!
+
+# Line Graphs
+
+<img width="1854" height="851" alt="image" src="https://github.com/user-attachments/assets/0ac690bb-75ad-4367-875a-0f5679343cf1" />
