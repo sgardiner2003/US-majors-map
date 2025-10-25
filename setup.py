@@ -3,6 +3,7 @@ import os
 import sys
 import numpy as np
 from urllib.request import urlopen
+import plotly.graph_objects as go
 # print(sys.executable)
 # using python 3.11.9; should switch to most recent
 
@@ -154,3 +155,26 @@ final_states = pd.concat(state_frames, ignore_index=True)
 
 final_counties.to_csv('C:/Users/sophi/Downloads/counties.csv',index=False)
 final_states.to_csv('C:/Users/sophi/Downloads/states.csv',index=False)
+
+### COMPARING STATE AND COUNTY DATASETS FOR DATA EXTRAPOLATION
+
+state = county_data[2015]['NAME'].str.split(', ').str[-1] # getting state names from county names
+se_men_county = county_data[2015]['S1502_C03_008E'].astype('float')
+se_men_state = state_data[2015]['S1502_C03_008E'].astype('float')
+
+temp_df = pd.DataFrame(list(zip(state, se_men_county)), columns = ['state','se_men_county'])
+grouped_df = temp_df.groupby('state').sum() # grouping by state and aggregating by sum
+grouped_df.index = grouped_df.index.str.strip()
+se_men_state.index = state_data[2015]['NAME'].str.strip() # ensuring indexes are the same for when i divide series data and .drop('Puerto Rico')
+# when i use groupby, the index changes to 'state' automatically
+
+percent_from_counties = grouped_df['se_men_county']/se_men_state # percent of state data that could theoretically consist of county data
+
+comparison = pd.DataFrame({
+    'county_sum' : grouped_df['se_men_county'],
+    'state_sum' : se_men_state,
+    'percent_from_counties' : percent_from_counties.round(3) * 100
+})
+comparison = comparison.astype({'county_sum' : 'Int64', 'state_sum' : 'Int64'}).drop('Puerto Rico')
+
+comparison.to_csv('C:/Users/sophi/Downloads/county-state-comparison.csv')
